@@ -1,106 +1,134 @@
 from pathlib import Path
-
 import joblib
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix
+)
 
 from preprocessing import preprocess_data
 
+# ----------------------------------------------------
+# Project Paths
+# ----------------------------------------------------
 
-# Project root directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Dataset path
 DATA_PATH = BASE_DIR / "data" / "WA_Fn-UseC_-Telco-Customer-Churn.csv"
 
-# Models directory
 MODELS_DIR = BASE_DIR / "models"
 MODELS_DIR.mkdir(exist_ok=True)
 
+# ----------------------------------------------------
+# Load Data
+# ----------------------------------------------------
 
-# Load and preprocess data
 X, y = preprocess_data(DATA_PATH)
 
-# Train-test split
+# ----------------------------------------------------
+# Split Data
+# ----------------------------------------------------
+
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
-    test_size=0.2,
+    test_size=0.20,
     random_state=42,
     stratify=y
 )
 
-# Scale data for Logistic Regression
-scaler = StandardScaler()
+# ----------------------------------------------------
+# Identify Feature Types
+# ----------------------------------------------------
 
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+numeric_features = X.select_dtypes(
+    include=["int64", "float64"]
+).columns
 
+categorical_features = X.select_dtypes(
+    include=["object", "bool"]
+).columns
 
-# -------------------------
-# Decision Tree
-# -------------------------
+# ----------------------------------------------------
+# Column Transformer
+# ----------------------------------------------------
 
-decision_tree = DecisionTreeClassifier(
-    random_state=42,
-    class_weight="balanced"
+preprocessor = ColumnTransformer(
+    transformers=[
+        (
+            "num",
+            StandardScaler(),
+            numeric_features
+        ),
+        (
+            "cat",
+            OneHotEncoder(handle_unknown="ignore"),
+            categorical_features
+        )
+    ]
 )
 
-decision_tree.fit(X_train, y_train)
+# ----------------------------------------------------
+# Pipeline
+# ----------------------------------------------------
 
-dt_predictions = decision_tree.predict(X_test)
+pipeline = Pipeline(
+    steps=[
+        ("preprocessor", preprocessor),
+        (
+            "classifier",
+            LogisticRegression(
+                max_iter=1000,
+                class_weight="balanced",
+                random_state=42
+            )
+        )
+    ]
+)
+
+# ----------------------------------------------------
+# Train Model
+# ----------------------------------------------------
+
+pipeline.fit(X_train, y_train)
+
+# ----------------------------------------------------
+# Predictions
+# ----------------------------------------------------
+
+y_pred = pipeline.predict(X_test)
+
+# ----------------------------------------------------
+# Evaluation
+# ----------------------------------------------------
 
 print("=" * 50)
-print("Decision Tree Results")
+print("Pipeline Results")
 print("=" * 50)
 
-print(classification_report(y_test, dt_predictions))
-print("Accuracy:", accuracy_score(y_test, dt_predictions))
+print("\nAccuracy:")
+print(accuracy_score(y_test, y_pred))
 
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
 
-# -------------------------
-# Logistic Regression
-# -------------------------
+print("\nConfusion Matrix:")
+print(confusion_matrix(y_test, y_pred))
 
-logistic_model = LogisticRegression(
-    max_iter=1000,
-    class_weight="balanced"
-)
-
-logistic_model.fit(X_train_scaled, y_train)
-
-lr_predictions = logistic_model.predict(X_test_scaled)
-
-print("\n" + "=" * 50)
-print("Logistic Regression Results")
-print("=" * 50)
-
-print(classification_report(y_test, lr_predictions))
-print("Accuracy:", accuracy_score(y_test, lr_predictions))
-
-
-# -------------------------
-# Save Models
-# -------------------------
+# ----------------------------------------------------
+# Save Pipeline
+# ----------------------------------------------------
 
 joblib.dump(
-    decision_tree,
-    MODELS_DIR / "decision_tree_model.pkl"
+    pipeline,
+    MODELS_DIR / "churn_pipeline.pkl"
 )
 
-joblib.dump(
-    logistic_model,
-    MODELS_DIR / "logistic_regression_model.pkl"
-)
-
-joblib.dump(
-    scaler,
-    MODELS_DIR / "scaler.pkl"
-)
-
-print("\nModels saved successfully!")
-print(f"Location: {MODELS_DIR}")
+print("\nPipeline saved successfully!")
+print(f"Location: {MODELS_DIR / 'churn_pipeline.pkl'}")
