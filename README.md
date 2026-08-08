@@ -143,7 +143,11 @@ The Decision Tree model identifies important features such as:
 * Monthly charges
 
 ---
+## Live Demo
 
+[Try the Live Telco Customer Churn Prediction App](https://dzkrvczjrnwhxgy53ouez3.streamlit.app/)
+
+---
 ## Business Impact
 
 This solution can help telecom companies:
